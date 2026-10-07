@@ -29,7 +29,7 @@ pipeline {
                 echo "Starting production Nginx gateway routing live traffic to Blue..."
                 bat "@${DOCKER} stop payment-router 2>nul & verify >nul"
                 bat "@${DOCKER} rm payment-router 2>nul & verify >nul"
-                bat "${DOCKER} run -d --name payment-router -p 9090:9090 -v \"%WORKSPACE%\\nginx.conf:/etc/nginx/nginx.conf\" nginx:alpine"
+                bat "${DOCKER} run -d --name payment-router -p 9090:9090 -v \"C:\\ProgramData\\Jenkins\\.jenkins\\workspace\\lab4-bluegreen-pipeline\\nginx.conf:/etc/nginx/nginx.conf\" nginx:alpine"
             }
         }
 
@@ -45,8 +45,8 @@ pipeline {
         stage('Promote Green to Production') {
             steps {
                 echo "Switching live traffic router to Green (port 8082)..."
-                // Overwrite content directly without altering file inode
-                bat "${DOCKER} exec payment-router sh -c \"sed 's/8081/8082/g' /etc/nginx/nginx.conf > /tmp/nginx.conf && cp /tmp/nginx.conf /etc/nginx/nginx.conf\""
+                // Safely stream changes directly to the existing file descriptor
+                bat "${DOCKER} exec payment-router sh -c \"sed 's/8081/8082/g' /etc/nginx/nginx.conf > /tmp/nginx.conf && cat /tmp/nginx.conf > /etc/nginx/nginx.conf\""
                 bat "${DOCKER} exec payment-router nginx -s reload"
             }
         }
@@ -66,8 +66,8 @@ pipeline {
                 echo "=========================================================="
                 echo "FIX: Executing instant traffic router switch back to Blue..."
                 echo "=========================================================="
-                // Revert router configuration back to Blue (8081)
-                bat "${DOCKER} exec payment-router sh -c \"sed 's/8082/8081/g' /etc/nginx/nginx.conf > /tmp/nginx.conf && cp /tmp/nginx.conf /etc/nginx/nginx.conf\""
+                // Revert live router configuration back to Blue (8081)
+                bat "${DOCKER} exec payment-router sh -c \"sed 's/8082/8081/g' /etc/nginx/nginx.conf > /tmp/nginx.conf && cat /tmp/nginx.conf > /etc/nginx/nginx.conf\""
                 bat "${DOCKER} exec payment-router nginx -s reload"
             }
         }
