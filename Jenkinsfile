@@ -29,7 +29,10 @@ pipeline {
                 echo "Starting production Nginx gateway routing live traffic to Blue..."
                 bat "@${DOCKER} stop payment-router 2>nul & verify >nul"
                 bat "@${DOCKER} rm payment-router 2>nul & verify >nul"
-                bat "${DOCKER} run -d --name payment-router -p 9090:9090 -v \"C:\\ProgramData\\Jenkins\\.jenkins\\workspace\\lab4-bluegreen-pipeline\\nginx.conf:/etc/nginx/nginx.conf\" nginx:alpine"
+                bat "${DOCKER} run -d --name payment-router -p 9090:9090 nginx:alpine"
+                // Copy blue config into container and reload
+                bat "${DOCKER} cp nginx-blue.conf payment-router:/etc/nginx/nginx.conf"
+                bat "${DOCKER} exec payment-router nginx -s reload"
             }
         }
 
@@ -45,8 +48,8 @@ pipeline {
         stage('Promote Green to Production') {
             steps {
                 echo "Switching live traffic router to Green (port 8082)..."
-                // Safely stream changes directly to the existing file descriptor
-                bat "${DOCKER} exec payment-router sh -c \"sed 's/8081/8082/g' /etc/nginx/nginx.conf > /tmp/nginx.conf && cat /tmp/nginx.conf > /etc/nginx/nginx.conf\""
+                // Copy green config into router container and reload
+                bat "${DOCKER} cp nginx-green.conf payment-router:/etc/nginx/nginx.conf"
                 bat "${DOCKER} exec payment-router nginx -s reload"
             }
         }
@@ -66,8 +69,8 @@ pipeline {
                 echo "=========================================================="
                 echo "FIX: Executing instant traffic router switch back to Blue..."
                 echo "=========================================================="
-                // Revert live router configuration back to Blue (8081)
-                bat "${DOCKER} exec payment-router sh -c \"sed 's/8082/8081/g' /etc/nginx/nginx.conf > /tmp/nginx.conf && cat /tmp/nginx.conf > /etc/nginx/nginx.conf\""
+                // Restore blue config into router container and reload
+                bat "${DOCKER} cp nginx-blue.conf payment-router:/etc/nginx/nginx.conf"
                 bat "${DOCKER} exec payment-router nginx -s reload"
             }
         }
